@@ -1,27 +1,24 @@
 import React, { useEffect } from "react";
-import { loadStripe } from "@stripe/stripe-js";
-import { useLazyQuery } from '@apollo/react-hooks';
-import { QUERY_CHECKOUT } from "../../utils/queries"
-import { idbPromise } from "../../utils/helpers"
-import CartItem from "../CartItem";
-import Auth from "../../utils/auth";
-import { useStoreContext } from "../../utils/GlobalState";
-import { TOGGLE_CART, ADD_MULTIPLE_TO_CART } from "../../utils/actions";
-import "./style.css";
+import CartItem from '../CartItem';
+import Auth from '../../utils/auth';
+import './style.css';
+import { idbPromise } from "../../utils/helpers";
+import { QUERY_CHECKOUT } from '../../utils/queries';
+import { loadStripe } from '@stripe/stripe-js';
+import { useLazyQuery } from '@apollo/client';
+import { TOGGLE_CART, ADD_MULTIPLE_TO_CART } from '../../utils/actions';
+import { useSelector, useDispatch } from 'react-redux'
 
-const stripePromise = loadStripe('pk_test_TYooMQauvdEDq54NiTphI7jx');
+const stripePromise = loadStripe(process.env.STRIPE_URI_ONE);
+
 
 const Cart = () => {
-  const [state, dispatch] = useStoreContext();
-  const [getCheckout, { data }] = useLazyQuery(QUERY_CHECKOUT);
+  //uses global state 'state' and updates state with 'dispatch' 
+  const state = useSelector((state) => state);
+  const dispatch = useDispatch();
 
-  useEffect(() => {
-    if (data) {
-      stripePromise.then((res) => {
-        res.redirectToCheckout({ sessionId: data.checkout.session })
-      })
-    }
-  }, [data]);
+
+  const [getCheckout, { data }] = useLazyQuery(QUERY_CHECKOUT);
 
   useEffect(() => {
     async function getCart() {
@@ -34,9 +31,18 @@ const Cart = () => {
     }
   }, [state.cart.length, dispatch]);
 
+  useEffect(() => {
+    if (data) {
+      console.log(data);
+      stripePromise.then((res) => {
+        res.redirectToCheckout({ sessionId: data.checkout.session });
+      });
+    }
+  }, [data]);
+
   function toggleCart() {
     dispatch({ type: TOGGLE_CART });
-  }
+  };
 
   function calculateTotal() {
     let sum = 0;
@@ -44,21 +50,23 @@ const Cart = () => {
       sum += item.price * item.purchaseQuantity;
     });
     return sum.toFixed(2);
-  }
+  };
 
   function submitCheckout() {
+    console.log('submit checkout function');
     const productIds = [];
 
     state.cart.forEach((item) => {
       for (let i = 0; i < item.purchaseQuantity; i++) {
         productIds.push(item._id);
       }
+      console.log(productIds);
     });
-
     getCheckout({
       variables: { products: productIds }
     });
-  }
+  };
+
 
   if (!state.cartOpen) {
     return (
@@ -79,28 +87,27 @@ const Cart = () => {
           {state.cart.map(item => (
             <CartItem key={item._id} item={item} />
           ))}
-
           <div className="flex-row space-between">
             <strong>Total: ${calculateTotal()}</strong>
-
             {
               Auth.loggedIn() ?
                 <button onClick={submitCheckout}>
                   Checkout
-              </button>
+                </button>
+
                 :
                 <span>(log in to check out)</span>
             }
           </div>
         </div>
       ) : (
-          <h3>
-            <span role="img" aria-label="shocked">
-              😱
+        <h3>
+          <span role="img" aria-label="shocked">
+            😱
           </span>
           You haven't added anything to your cart yet!
-          </h3>
-        )}
+        </h3>
+      )}
     </div>
   );
 };
